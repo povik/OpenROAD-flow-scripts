@@ -9,7 +9,11 @@ if { [info exist ::env(SYNTH_GUT)] && $::env(SYNTH_GUT) == 1 } {
   delete $::env(DESIGN_NAME)/c:*
 }
 
-synthesize_check $::env(SYNTH_FULL_ARGS)
+# Generic synthesis
+read_verilog -lib $::env(SCRIPTS_DIR)/lcu_lib.v
+synthesize_check "$::env(SYNTH_FULL_ARGS) -extra-map $::env(SCRIPTS_DIR)/lcu_nomap.v"
+# Get rid of indigestibles
+chformal -remove
 
 # rename registers to have the verilog register name in its name
 # of the form \regName$_DFF_P_. We should fix yosys to make it the reg name.
@@ -52,6 +56,35 @@ opt
 puts "abc [join $abc_args " "]"
 abc {*}$abc_args
 
+# Generate mapping options for unmapped operators
+read_verilog -DPLATFORM_$::env(PLATFORM) $::env(SCRIPTS_DIR)/lcu_impls.v
+box_derive -base LCU_KOGGE_STONE -naming_attr export_name t:LCU
+box_derive -base LCU_BRENT_KUNG -naming_attr export_name t:LCU
+# Remove the generic templates now that the per-width specializations
+# have been derived
+delete LCU_KOGGE_STONE
+delete LCU_BRENT_KUNG
+# Apply special synthesis to the mapping options
+select A:implements_operator
+yosys proc
+opt -fast
+techmap
+# this bit was copied from synth_preamble.tcl to generate the read_lib
+# invocation including the list of dont use cells
+set read_lib_args [list]
+# Exclude dont_use cells
+if {[info exist ::env(DONT_USE_CELLS)] && $::env(DONT_USE_CELLS) != ""} {
+  foreach cell $::env(DONT_USE_CELLS) {
+    lappend read_lib_args -X $cell
+  }
+}
+lappend read_lib_args $::env(DONT_USE_SC_LIB)
+abc -script "+read_lib -G 2.0 $read_lib_args;&get -n;&st;&nf -R 2;&put"
+select -clear
+
+# Rename LCU blackboxes so they lose the WIDTH parameter
+techmap -map $::env(SCRIPTS_DIR)/lcu_export_rename.v
+
 # Replace undef values with defined constants
 setundef -zero
 
@@ -75,4 +108,10 @@ tee -o $::env(REPORTS_DIR)/synth_check.txt check
 tee -o $::env(REPORTS_DIR)/synth_stat.txt stat {*}$stat_libs
 
 # Write synthesized design
+setattr -mod -unset hdlname
+setattr -mod -unset dynports
+setattr -mod -unset cells_not_processed
+setattr -unset force_downto
+setattr -unset unused_bits
+setattr -unset module_not_derived
 write_verilog -noexpr -nohex -nodec $::env(RESULTS_DIR)/1_1_yosys.v
