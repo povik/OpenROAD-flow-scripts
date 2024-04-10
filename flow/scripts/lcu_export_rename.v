@@ -10,6 +10,7 @@ module _80_lcu_rename(P, G, CO);
 	output wire [WIDTH-1:0] CO;
 
 	(* unmapped_operator *)
-	(* techmap_chtype=$sformatf("LCU_%0d", WIDTH) *)
+	(* implements_operator=$sformatf("LCU_%0d", WIDTH) *)
+	(* techmap_chtype=$sformatf("LCU_%0d_SC_KOGGE_STONE", WIDTH) *)
 	_TECHMAP_PLACEHOLDER_ _TECHMAP_REPLACE_(.P(P), .G(G), .CO(CO));
 endmodule
