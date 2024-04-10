@@ -13,7 +13,8 @@ if { [info exist ::env(SYNTH_GUT)] && $::env(SYNTH_GUT) == 1 } {
 }
 
 # Generic synthesis
-synth -top $::env(DESIGN_NAME) {*}$::env(SYNTH_ARGS)
+read_verilog -lib $::env(SCRIPTS_DIR)/lcu_lib.v
+synth -top $::env(DESIGN_NAME) -extra-map $::env(SCRIPTS_DIR)/lcu_nomap.v {*}$::env(SYNTH_ARGS)
 # Get rid of indigestibles
 chformal -remove
 
@@ -72,6 +73,16 @@ opt
 puts "abc [join $abc_args " "]"
 abc {*}$abc_args
 
+# Generate mapping options for unmapped operators
+read_verilog -DPLATFORM_$::env(PLATFORM) $::env(SCRIPTS_DIR)/lcu_impls.v
+bbox_derive -base LCU_SC_KOGGE_STONE -naming_attr export_name t:LCU
+delete LCU_SC_KOGGE_STONE
+yosys proc
+opt_clean
+
+# Rename LCU blackboxes so they lose the WIDTH parameter
+techmap -map $::env(SCRIPTS_DIR)/lcu_export_rename.v
+
 # Replace undef values with defined constants
 setundef -zero
 
@@ -95,4 +106,10 @@ tee -o $::env(REPORTS_DIR)/synth_check.txt check
 tee -o $::env(REPORTS_DIR)/synth_stat.txt stat {*}$stat_libs
 
 # Write synthesized design
-write_verilog -noattr -noexpr -nohex -nodec $::env(RESULTS_DIR)/1_1_yosys.v
+setattr -mod -unset hdlname
+setattr -mod -unset dynports
+setattr -mod -unset cells_not_processed
+setattr -unset force_downto
+setattr -unset unused_bits
+setattr -unset module_not_derived
+write_verilog -noexpr -nohex -nodec $::env(RESULTS_DIR)/1_1_yosys.v
