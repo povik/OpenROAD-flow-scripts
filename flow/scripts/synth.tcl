@@ -75,10 +75,29 @@ abc {*}$abc_args
 
 # Generate mapping options for unmapped operators
 read_verilog -DPLATFORM_$::env(PLATFORM) $::env(SCRIPTS_DIR)/lcu_impls.v
-bbox_derive -base LCU_SC_KOGGE_STONE -naming_attr export_name t:LCU
-delete LCU_SC_KOGGE_STONE
+bbox_derive -base LCU_KOGGE_STONE -naming_attr export_name t:LCU
+bbox_derive -base LCU_BRENT_KUNG -naming_attr export_name t:LCU
+# Remove the generic templates now that the per-width specializations
+# have been derived
+delete LCU_KOGGE_STONE
+delete LCU_BRENT_KUNG
+# Apply special synthesis to the mapping options
+select A:implements_operator
 yosys proc
-opt_clean
+opt -fast
+techmap
+# this bit was copied from synth_preamble.tcl to generate the read_lib
+# invocation including the list of dont use cells
+set read_lib_args [list]
+# Exclude dont_use cells
+if {[info exist ::env(DONT_USE_CELLS)] && $::env(DONT_USE_CELLS) != ""} {
+  foreach cell $::env(DONT_USE_CELLS) {
+    lappend read_lib_args -X $cell
+  }
+}
+lappend read_lib_args $::env(DONT_USE_SC_LIB)
+abc -script "+read_lib -G 2.0 $read_lib_args;&get -n;&st;&nf -R 2;&put"
+select -clear
 
 # Rename LCU blackboxes so they lose the WIDTH parameter
 techmap -map $::env(SCRIPTS_DIR)/lcu_export_rename.v
