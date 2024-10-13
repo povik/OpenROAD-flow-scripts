@@ -108,6 +108,10 @@ if { [env_var_equals REMOVE_ABC_BUFFERS 1] } {
   # remove buffers inserted by yosys/abc
   remove_buffers
 } else {
+  if {[env_var_exists_and_non_empty NEW_SYNTHESIS]} {
+    repair_design -buffer_gain 4.0
+    repair_design
+  }
   repair_timing_helper 0
 }
 

@@ -37,7 +37,11 @@ foreach file $::env(VERILOG_FILES) {
 
 # Read standard cells and macros as blackbox inputs
 # These libs have their dont_use properties set accordingly
-read_liberty -lib {*}$::env(DONT_USE_LIBS)
+read_liberty -overwrite -lib {*}$::env(DONT_USE_LIBS)
+read_liberty -overwrite -setattr abc9_box -wb -unit_delay -ignore_miss_func -unit_delay {*}[lsearch -all -inline -not $::env(DONT_USE_LIBS) *fakeram7_*]
+setattr -mod -unset abc9_box =*/t:\$spec* %m %n
+setattr -mod -unset abc9_box =*/t:\$_D*_ %m
+delete =*/o:* %x:+\$specify2\[SRC] =*/t:\$specify2 %i
 
 # Apply toplevel parameters (if exist)
 if {[env_var_exists_and_non_empty VERILOG_TOP_PARAMS]} {

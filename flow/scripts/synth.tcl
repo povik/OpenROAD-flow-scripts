@@ -49,8 +49,12 @@ if {[env_var_exists_and_non_empty DFF_LIB_FILE]} {
 }
 opt
 
-puts "abc [join $abc_args " "]"
-abc {*}$abc_args
+if {[info exist ::env(NEW_SYNTHESIS)]} {
+  abc_new {*}$abc_args -script scripts/abc_speed.script_new
+} else {
+  puts "abc [join $abc_args " "]"
+  abc {*}$abc_args
+}
 
 # Replace undef values with defined constants
 setundef -zero
