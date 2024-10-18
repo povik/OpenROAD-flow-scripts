@@ -38,7 +38,8 @@ foreach file $::env(VERILOG_FILES) {
 
 # Read standard cells and macros as blackbox inputs
 # These libs have their dont_use properties set accordingly
-read_liberty -lib {*}$::env(DONT_USE_LIBS)
+read_liberty -overwrite -setattr liberty_cell -lib {*}$::env(DONT_USE_LIBS)
+read_liberty -overwrite -setattr liberty_cell -wb -unit_delay -ignore_miss_func {*}[lsearch -all -inline -not $::env(DONT_USE_LIBS) *fakeram7_*]
 
 # Apply toplevel parameters (if exist)
 if {[env_var_exists_and_non_empty VERILOG_TOP_PARAMS]} {
@@ -116,4 +117,36 @@ proc synthesize_check {synth_args} {
   synth -top $::env(DESIGN_NAME) -run fine: {*}$synth_args
   # Get rid of indigestibles
   chformal -remove
+}
+
+proc convert_liberty_areas {} {
+  debug cellmatch -derive_luts =A:liberty_cell
+  # find a reference nand2 gate
+  set found_cell ""
+  set found_cell_area ""
+  foreach cell [tee -q -s result.string select -list-mod =*/a:lut=4'b0111 %m] {
+    if {! [rtlil::has_attr -mod $cell area]} {
+      puts "Cell $cell missing area information"
+      continue
+    }
+    set area [rtlil::get_attr -string -mod $cell area]
+    if {$found_cell == "" || [expr $area < $found_cell_area]} {
+      set found_cell $cell
+      set found_cell_area $area
+    }
+  }
+  if {$found_cell == ""} {
+    error "reference nand2 cell not found"
+  }
+
+  puts "reference nand2 area: $found_cell_area"
+
+  # convert the area on all Liberty cells to a gate number equivalent
+  foreach box [tee -q -s result.string select -list-mod =A:area =A:liberty_cell %i] {
+    rtlil::get_attr -mod -string $box area
+    set area [rtlil::get_attr -mod -string $box area]
+    set gate_eq [expr $area / $found_cell_area]
+    rtlil::set_attr -mod -int $box gate_cost_equivalent $gate_eq
+    puts "setting $box $gate_eq"
+  }
 }
